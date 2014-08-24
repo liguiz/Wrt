@@ -4,5 +4,6 @@
     <string name="app_name">Wrt</string>
     <string name="action_settings">Settings</string>
     <string name="hello_world">Hello world!</string>
+    <string name="search">查找主机</string>
 
 </resources>
