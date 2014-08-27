@@ -6,7 +6,7 @@
         android:id = "@+id/footerview"
         android:layout_width = "fill_parent"
         android:text="@string/search"
-        android:background="@drawable/"
+
         />
 
 </FrameLayout>

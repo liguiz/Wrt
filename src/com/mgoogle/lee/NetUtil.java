@@ -1,5 +1,6 @@
 package com.mgoogle.lee;
 
+import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
@@ -11,39 +12,72 @@ import android.os.Handler;
 public class NetUtil {
 	
 	/**
-	 * Õë¶Ô255.255.255.0ÑÚÂëµÄÇé¿ö,Éú³ÉÖ¸¶¨ipµØÖ·µÄ×ÓÍøºÅ.
-	 * @param ×ÓÍøµÄÒ»¸öipµØÖ·.
-	 * @return InetAddressÀàĞÍµÄ×ÓÍøµØÖ·
+	 * é’ˆå¯¹255.255.255.0æ©ç çš„æƒ…å†µ,ç”ŸæˆæŒ‡å®šipåœ°å€çš„å­ç½‘å·.
+	 * @param å­ç½‘çš„ä¸€ä¸ªipåœ°å€.
+	 * @return InetAddressç±»å‹çš„å­ç½‘åœ°å€
 	 */
+	final static int[] portCan={1531,4862,1615,4628,1369};
 	static public InetAddress getNetworkSegmentAddressFromInetAddress(InetAddress i){
 		String s = i.getHostAddress();
 		InetAddress j = null;
 		try {
-			j = InetAddress.getByName(s.substring(0, s.lastIndexOf(".")+1)+"0" );	//Õë¶ÔÍøÂçºÅÄ©Î²Îª0µÄÇé¿ö,Èç¹û²»Îª0»¹ÊÇÓÃbyte[] ip
+			j = InetAddress.getByName(s.substring(0, s.lastIndexOf(".")+1)+"255" );	//é’ˆå¯¹ç½‘ç»œå·æœ«å°¾ä¸º0çš„æƒ…å†µ,å¦‚æœä¸ä¸º0è¿˜æ˜¯ç”¨byte[] ip
 		} catch (UnknownHostException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		System.out.println(j.getHostAddress());
 		return j;
 	}
 	
 	/**
-	 * °ÑÖ¸¶¨µÄÄÚÈİ¹ã²¥µ½×ÓÍøµÄËùÓĞÖ÷»ú
-	 * @param msg¹ã²¥µÄÄÚÈİ
+	 * æŠŠæŒ‡å®šçš„å†…å®¹å¹¿æ’­åˆ°å­ç½‘çš„æ‰€æœ‰ä¸»æœº
+	 * @param msgå¹¿æ’­çš„å†…å®¹
 	 * @return
 	 */
-	static public boolean sendNetBroadCast(String msg){
+	static public boolean sendNetBroadCast(String msg,int clientPort){
 		MulticastSocket s=null;
 		DatagramPacket packet = null;
 		try {
-			s = new MulticastSocket();
-			s.setTimeToLive(1);
-			InetAddress  ip=null;
-			ip= InetAddress.getLocalHost();
-			s.joinGroup(NetUtil.getNetworkSegmentAddressFromInetAddress(ip));
+			for(int i=1024;i<5001;++i){
+				try{
+					s = new MulticastSocket(i);
+				}catch(Exception e){
+					
+				}
+			}
+			s.setTimeToLive(2);
+//			InetAddress  ips[]=null;
+//			ips= InetAddress.getAllByName(InetAddress.getLocalHost().getHostName());
+//			InetAddress ip=null;
+//			for(int i = 0;i<ips.length;i++){
+//				String sip=ips[i].getHostAddress();
+//				
+//				if(sip.contains("192.168.")||		//cç±»ç§æœ‰åœ°å€
+//						sip.startsWith("10.")||		//Aç±»ç§æœ‰åœ°å€
+//						(sip.startsWith("172.")&&(
+//								Integer.parseInt(sip.substring(3, 5))>15||
+//								Integer.parseInt(sip.substring(3, 5))<33))){
+//					ip=ips[i];
+//					port=i;
+//					continue;
+//				}
+//			}
+
+//			s.joinGroup(NetUtil.getNetworkSegmentAddressFromInsetAddress(ip));
+			s.joinGroup(InetAddress.getByName("224.0.0.1"));
 			byte[] data = msg.getBytes();
-			packet = new DatagramPacket(data,data.length);
-			s.send(packet);
+			if(clientPort>0){
+				packet = new DatagramPacket(data,data.length,InetAddress.getByName("224.0.0.1"),clientPort);
+				s.send(packet);
+			}
+			else{
+				for(int i=0;i<portCan.length;i++){
+					packet = new DatagramPacket(data,data.length,InetAddress.getByName("224.0.0.1"),portCan[i]);
+					s.send(packet);
+				}
+			}
+			
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -60,7 +94,7 @@ public class NetUtil {
 		try{
 			ss = new ServerSocket();
 			ss.bind(null);
-			sendNetBroadCast(ss.getLocalPort()+"");
+			sendNetBroadCast(ss.getLocalPort()+"",-1);
 			ht.handleTcpFromStream(ss.accept().getInputStream());
 			return true;
 		}catch(Exception e){
@@ -75,9 +109,9 @@ public class NetUtil {
 	}
 	
 	/**
-	 * ÓÃÖ¸¶¨µÄHandleTcp½Ó¿Ú´¦Àí¿Í»§¶Ë·¢¹ıµÄInputStreamm,¿Í»§¶ËÒª´ÓUDP¹ã²¥ÀïÕÒµ½·şÎñ¶Ë¶Ë¿Ú.
+	 * ç”¨æŒ‡å®šçš„HandleTcpæ¥å£å¤„ç†å®¢æˆ·ç«¯å‘è¿‡çš„InputStreamm,å®¢æˆ·ç«¯è¦ä»UDPå¹¿æ’­é‡Œæ‰¾åˆ°æœåŠ¡ç«¯ç«¯å£.
 	 * @param ht
-	 * @param handler¸ºÔğÖ´ĞĞ
+	 * @param handlerè´Ÿè´£æ‰§è¡Œ
 	 */
 	static public void handleDataFromLan(final HandleTcp ht,Handler handler){
 		handler.post(new Runnable(){
@@ -89,5 +123,30 @@ public class NetUtil {
 			}
 			
 		});
+	}
+	
+	static public String getMessageFromBroadcast() throws Exception{
+		String msg=null;
+		byte[] buf = new byte[1024];
+		MulticastSocket ms = new MulticastSocket(6758);
+		DatagramPacket dp = new DatagramPacket(buf, buf.length);
+		ms.joinGroup(InetAddress.getByName("224.0.0.1"));
+		ms.receive(dp);
+		msg=new String(dp.getData());
+		ms.close();
+		return msg;
+	}
+	
+	static public boolean sendNetBroadCastInBackground(final String s,final int clientport) {
+		new Thread(new Runnable(){
+
+			@Override
+			public void run() {
+				// TODO Auto-generated method stub
+				sendNetBroadCast(s, clientport);
+			}
+			
+		}).start();
+		return true;
 	}
 }
