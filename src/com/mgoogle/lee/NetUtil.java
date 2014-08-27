@@ -5,7 +5,11 @@ import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.ListIterator;
 
 import android.os.Handler;
 
@@ -17,6 +21,7 @@ public class NetUtil {
 	 * @return InetAddress类型的子网地址
 	 */
 	final static int[] portCan={1531,4862,1615,4628,1369};
+	final static int udp_port=6758;
 	static public InetAddress getNetworkSegmentAddressFromInetAddress(InetAddress i){
 		String s = i.getHostAddress();
 		InetAddress j = null;
@@ -31,8 +36,8 @@ public class NetUtil {
 	}
 	
 	/**
-	 * 把指定的内容广播到子网的所有主机
-	 * @param msg广播的内容
+	 * 把指定的内容广播到子网的所有主机224.0.0.1
+	 * @param msg广播的内容,clientPort指定接收广播的端口,负值使用候选端口
 	 * @return
 	 */
 	static public boolean sendNetBroadCast(String msg,int clientPort){
@@ -47,22 +52,6 @@ public class NetUtil {
 				}
 			}
 			s.setTimeToLive(2);
-//			InetAddress  ips[]=null;
-//			ips= InetAddress.getAllByName(InetAddress.getLocalHost().getHostName());
-//			InetAddress ip=null;
-//			for(int i = 0;i<ips.length;i++){
-//				String sip=ips[i].getHostAddress();
-//				
-//				if(sip.contains("192.168.")||		//c类私有地址
-//						sip.startsWith("10.")||		//A类私有地址
-//						(sip.startsWith("172.")&&(
-//								Integer.parseInt(sip.substring(3, 5))>15||
-//								Integer.parseInt(sip.substring(3, 5))<33))){
-//					ip=ips[i];
-//					port=i;
-//					continue;
-//				}
-//			}
 
 //			s.joinGroup(NetUtil.getNetworkSegmentAddressFromInsetAddress(ip));
 			s.joinGroup(InetAddress.getByName("224.0.0.1"));
@@ -87,25 +76,47 @@ public class NetUtil {
 		}
 		return true;
 	}
+
+	
+	public static ArrayList<InetAddress> getLanIps() throws UnknownHostException {
+		InetAddress  ips[]=null;
+		ips= InetAddress.getAllByName(InetAddress.getLocalHost().getHostName());
+		ArrayList<InetAddress> ip=new ArrayList<InetAddress>();
+		for(int i = 0;i<ips.length;i++){
+			String sip=ips[i].getHostAddress();
+			
+			if(sip.contains("192.168.")||		//c类私有地址
+					sip.startsWith("10.")||		//A类私有地址
+					(sip.startsWith("172.")&&(
+							Integer.parseInt(sip.substring(3, 5))>15||
+							Integer.parseInt(sip.substring(3, 5))<33))){
+				ip.add(ips[i]);
+
+				continue;
+			}
+		}
+		return ip;
+	}
 	
 	
-	static public boolean handleDataFromLan(HandleTcp ht){
+	static public boolean handleDataFromLan(final HandleTcp ht) throws Exception{
+//		final int  routerPort=6751;
 		ServerSocket ss=null;
 		try{
 			ss = new ServerSocket();
 			ss.bind(null);
-			sendNetBroadCast(ss.getLocalPort()+"",-1);
-			ht.handleTcpFromStream(ss.accept().getInputStream());
-			return true;
-		}catch(Exception e){
-			return false;
-		}finally{
-			try{
-				ss.close();
-			}catch(Exception e){
-				return false;
+			sendNetBroadCast(ss.getLocalPort()+"",udp_port);
+			while(true){
+				Socket s = ss.accept();
+				ht.handleTcpFromStream(s.getInputStream());
 			}
+		}catch(Exception e){
+			e.printStackTrace();
+		}finally{
+			ss.close();
 		}
+
+		return true;
 	}
 	
 	/**
@@ -119,7 +130,12 @@ public class NetUtil {
 			@Override
 			public void run() {
 				// TODO Auto-generated method stub
-				handleDataFromLan(ht);
+				try {
+					handleDataFromLan(ht);
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 			}
 			
 		});
@@ -128,10 +144,11 @@ public class NetUtil {
 	static public String getMessageFromBroadcast() throws Exception{
 		String msg=null;
 		byte[] buf = new byte[1024];
-		MulticastSocket ms = new MulticastSocket(6758);
+		MulticastSocket ms = new MulticastSocket(udp_port);
 		DatagramPacket dp = new DatagramPacket(buf, buf.length);
 		ms.joinGroup(InetAddress.getByName("224.0.0.1"));
 		ms.receive(dp);
+		System.out.println("dp.getSocketAddress():"+dp.getSocketAddress());
 		msg=new String(dp.getData());
 		ms.close();
 		return msg;
